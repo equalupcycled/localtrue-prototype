@@ -127,7 +127,53 @@ const today=()=>{const n=new Date();return new Date(n.getFullYear(),n.getMonth()
 const me=()=>state.user.name||'Alex';
 const other=()=>person(state.date.withId)||PEOPLE.find(p=>p.g===state.user.interested)||PEOPLE[0];
 const myPhoto=()=>photo(7,1);
-const matchList=()=>PEOPLE.filter(p=>p.g===state.user.interested).sort((a,b)=>b.score-a.score);
+
+const ATTR={jess:{looking:'serious',kids:'none',faith:'spiritual',drinking:'social',smoking:'never'},
+ amber:{looking:'serious',kids:'have',faith:'christian',drinking:'no',smoking:'never'},
+ kayla:{looking:'serious',kids:'open',faith:'christian',drinking:'social',smoking:'never'},
+ lindsey:{looking:'serious',kids:'want',faith:'any',drinking:'social',smoking:'never'},
+ tyler:{looking:'serious',kids:'none',faith:'christian',drinking:'social',smoking:'never'},
+ cody:{looking:'serious',kids:'open',faith:'christian',drinking:'social',smoking:'never'},
+ ben:{looking:'serious',kids:'have',faith:'spiritual',drinking:'no',smoking:'never'},
+ josh:{looking:'casual',kids:'open',faith:'any',drinking:'social',smoking:'occasional'}};
+PEOPLE.forEach(p=>{p.a=ATTR[p.id];});
+PEOPLE.find(p=>p.id==='josh').tags[0]='🙂 Casual, seeing where it goes';
+
+/* ---------- match importance engine ---------- */
+const IMP=[['deal','Dealbreaker'],['very','Very important'],['some','Somewhat'],['none',"Doesn't matter"]];
+const IMP_W={deal:4,very:3,some:1.5,none:0};
+const IMP_DEF={looking:'very',age:'very',distance:'some',kids:'some',faith:'some',drinking:'some',smoking:'some'};
+const Q_LABEL={looking:'What you want',age:'Age',distance:'Distance',kids:'Kids',faith:'Faith',drinking:'Drinking',smoking:'Smoking'};
+const imp=k=>((state.user.imp||{})[k])||IMP_DEF[k];
+const LABELS={looking:{serious:'Something serious',casual:'Casual dating',friends:'Friends first'},kids:{none:"Doesn't want kids",have:'Has kids',want:'Wants kids',open:'Open to kids'},faith:{any:'Open on faith',christian:'Christian',spiritual:'Spiritual',other:'Other faith',none:'Not religious'},drinking:{no:'Rarely drinks',social:'Drinks socially',often:'Drinks regularly'},smoking:{never:'Non-smoker',occasional:'Occasional smoker',yes:'Smoker'}};
+function compat(k,want,has){
+  if(want===has) return 1;
+  const M={
+   looking:{serious:{casual:.2,friends:.5},casual:{serious:.3,friends:.7},friends:{serious:.6,casual:.7}},
+   kids:{none:{have:0,want:0,open:.5},have:{none:0,want:.6,open:.9},want:{none:0,have:.6,open:.8},open:{none:.6,have:.9,want:.9}},
+   drinking:{no:{social:.5,often:0},social:{no:.6,often:.6},often:{no:0,social:.6}},
+   smoking:{never:{occasional:.35,yes:0},occasional:{never:.6,yes:.6},yes:{never:.2,occasional:.6}}};
+  if(k==='faith'){ if(want==='any'||has==='any') return 1; const pair=[want,has].sort().join(); return pair==='christian,spiritual'?.4:pair==='other,spiritual'?.5:0; }
+  return ((M[k]||{})[want]||{})[has]??0;
+}
+function scoreOf(p){
+  const u=state.user, rows=[];
+  const add=(k,c,mine,theirs)=>rows.push({k,c,imp:imp(k),mine,theirs});
+  add('looking',compat('looking',u.looking,p.a.looking),LABELS.looking[u.looking],LABELS.looking[p.a.looking]);
+  const ad=p.age<u.ageMin?u.ageMin-p.age:p.age>u.ageMax?p.age-u.ageMax:0;
+  add('age',ad===0?1:ad<=2?.5:0,`${u.ageMin}–${u.ageMax}`,`${p.age}`);
+  add('distance',p.dist<=u.distance?1:p.dist<=u.distance*1.3?.4:0,`within ${u.distance} mi`,`${p.dist} mi`);
+  ['kids','faith','drinking','smoking'].forEach(k=>add(k,compat(k,u[k],p.a[k===('kids')?'kids':k]),LABELS[k][u[k]]||'Not important',LABELS[k][p.a[k]]));
+  let w=0,t=0,blocked=[];
+  rows.forEach(r=>{const wt=IMP_W[r.imp]; if(r.imp==='deal'&&r.c<.5) blocked.push(r); w+=wt; t+=wt*r.c;});
+  const fit=w?t/w:1;
+  const score=Math.max(40,Math.min(99,Math.round(fit*72+p.score*.27)));
+  return {score,rows,blocked};
+}
+const matchAll=()=>PEOPLE.filter(p=>p.g===state.user.interested);
+const matchList=()=>matchAll().map(p=>({p,s:scoreOf(p)})).filter(x=>!x.s.blocked.length).sort((a,b)=>b.s.score-a.s.score).map(x=>x.p);
+const hiddenList=()=>matchAll().filter(p=>scoreOf(p).blocked.length);
+
 
 /* ---------- nav ---------- */
 function renderNav(route){
@@ -246,7 +292,9 @@ const OPT={
  faith:[['any','Not important'],['christian','Christian'],['spiritual','Spiritual'],['other','Other faith'],['none','Not religious']],
  drinking:[['no','Never'],['social','Socially'],['often','Regularly']],
  smoking:[['never','Never'],['occasional','Occasionally'],['yes','Yes']]};
-function optGroup(k,big){return `<div class="opts">${OPT[k].map(o=>`<button class="opt ${big?'big':''} ${state.user[k]===o[0]?'on':''}" data-act="pick" data-k="${k}" data-v="${o[0]}">${o[1]}${o[2]?`<small>${o[2]}</small>`:''}</button>`).join('')}</div>`;}
+const IMPS={deal:'Dealbreaker',very:'Very',some:'Somewhat',none:"Doesn't matter"};
+function impRow(k){const cur=imp(k);return `<div class="imp"><span class="lbl">How important is it that this matches?</span><div class="seg" role="group">${IMP.map(([v,l])=>`<button class="${cur===v?'on '+v:''}" data-act="imp" data-k="${k}" data-v="${v}">${v==='very'?'Very important':l}</button>`).join('')}</div></div>`;}
+function optGroup(k,big){return `<div class="opts">${OPT[k].map(o=>`<button class="opt ${big?'big':''} ${state.user[k]===o[0]?'on':''}" data-act="pick" data-k="${k}" data-v="${o[0]}">${o[1]}${o[2]?`<small>${o[2]}</small>`:''}</button>`).join('')}</div>${impRow(k)}`;}
 function pOnboard(){
   const u=state.user, st=ob.step, N=4;
   let b='';
@@ -256,11 +304,11 @@ function pOnboard(){
     <div class="q">I'm looking for…</div>${optGroup('looking',true)}`;
   if(st===2) b=`<h2 style="font-size:1.9rem">Age &amp; distance</h2>
     <div class="q">Age range <span class="bigval" id="ageout" style="margin-left:8px">${u.ageMin}–${u.ageMax}</span></div>
-    <div class="dual"><div class="track"></div><div class="fill" id="agefill"></div><input type="range" min="18" max="80" value="${u.ageMin}" id="ageMin"><input type="range" min="18" max="80" value="${u.ageMax}" id="ageMax"></div>
+    <div class="dual"><div class="track"></div><div class="fill" id="agefill"></div><input type="range" min="18" max="80" value="${u.ageMin}" id="ageMin"><input type="range" min="18" max="80" value="${u.ageMax}" id="ageMax"></div>${impRow('age')}
     <div class="q">Distance <span class="bigval" id="distout" style="margin-left:8px">${u.distance} mi</span></div>
-    <input type="range" min="5" max="100" step="5" value="${u.distance}" id="dist"><div class="small muted" style="margin-top:6px">Small-town friendly: most of your matches will be within 30 miles.</div>`;
+    <input type="range" min="5" max="100" step="5" value="${u.distance}" id="dist"><div class="small muted" style="margin-top:6px">Small-town friendly: most of your matches will be within 30 miles.</div>${impRow('distance')}`;
   if(st===3) b=`<h2 style="font-size:1.9rem">About you &amp; what matters</h2>
-    <div class="q">Kids</div>${optGroup('kids')}<div class="q">Faith</div>${optGroup('faith')}<div class="q">Drinking</div>${optGroup('drinking')}<div class="q">Smoking</div>${optGroup('smoking')}`;
+    <p class="muted small" style="margin-top:6px">Under each question, tell us how much it matters. <b style="color:var(--text)">Dealbreakers</b> hide people who don't fit; the rest weight your match scores.</p><div class="q">Kids</div>${optGroup('kids')}<div class="q">Faith</div>${optGroup('faith')}<div class="q">Drinking</div>${optGroup('drinking')}<div class="q">Smoking</div>${optGroup('smoking')}`;
   if(st===4) b=`<h2 style="font-size:1.9rem">Choose your region</h2><p class="muted" style="margin-top:6px">You'll be matched with verified people in this area. Regions marked soon let you join the waitlist.</p>
     <div class="grid" style="margin-top:18px;gap:10px">${REGIONS.map(r=>`<button class="region" style="${u.region===r.id?'border-color:var(--accent);background:rgba(255,90,60,.1)':''}" data-act="pick" data-k="region" data-v="${r.id}"><span class="dot" style="background:${r.status==='open'?'var(--green)':'var(--amber)'}"></span><span><span class="nm">${r.name}</span><br><span class="st">${r.towns}</span></span><span class="tag ${r.status==='open'?'open':'wl'}">${r.status==='open'?'Open now':'Waitlist'}</span></button>`).join('')}</div>`;
   return `<div class="auth"><div class="narrow" style="max-width:560px"><div class="progress">${Array.from({length:N},(_,i)=>`<i class="${st>i?'on':''}"></i>`).join('')}</div>
@@ -276,6 +324,13 @@ function bindOnboard(){
   if(d) d.oninput=()=>{state.user.distance=+d.value;$('#distout').textContent=d.value+' mi';save();};
 }
 
+function lineup(p){
+  const sc=scoreOf(p), mark=c=>c>=.85?['✓','ok']:c>=.5?['~','mid']:['✕','no'];
+  const rows=sc.rows.filter(r=>r.imp!=='none');
+  const skipped=sc.rows.filter(r=>r.imp==='none').map(r=>Q_LABEL[r.k]).join(', ');
+  return `<div class="psec"><h4>How you line up</h4><div class="lineup">${rows.map(r=>{const m=mark(r.c);return `<div class="lu ${m[1]}"><i>${m[0]}</i><div><b>${Q_LABEL[r.k]}</b><span class="small muted"> · you: ${esc(r.mine)} · ${esc(p.name)}: ${esc(r.theirs)}</span></div><em class="impt ${r.imp}">${IMPS[r.imp]}</em></div>`}).join('')}</div>${skipped?`<div class="small muted" style="margin-top:8px">Not counted (you said it doesn't matter): ${skipped}.</div>`:''}<a class="small accent" href="#/onboarding" style="display:inline-block;margin-top:8px">Change what matters to you →</a></div>`;
+}
+
 /* ---------- matches ---------- */
 function mCard(p){
   const sw=state.swipes[p.id], matched=state.matched[p.id];
@@ -283,7 +338,7 @@ function mCard(p){
     : sw==='interested'?`<div class="status int">❤️ Interested · waiting on ${p.name}</div>`
     : sw==='pass'?`<div class="status pass">Passed</div>`
     : `<div class="acts"><button class="btn ghost" data-act="pass" data-id="${p.id}">Pass</button><button class="btn primary" data-act="like" data-id="${p.id}">Interested</button></div>`;
-  return `<article class="mcard"><a class="ph" href="#/profile/${p.id}"><img src="${photo(p.seed,0)}" alt="${p.name}">${vcheck}<span class="score">${p.score}% match</span><span class="nm">${p.name}, ${p.age}<small>${p.town} · ${p.dist} mi away</small></span></a>
+  return `<article class="mcard"><a class="ph" href="#/profile/${p.id}"><img src="${photo(p.seed,0)}" alt="${p.name}">${vcheck}<span class="score">${scoreOf(p).score}% match</span><span class="nm">${p.name}, ${p.age}<small>${p.town} · ${p.dist} mi away</small></span></a>
    <div class="bd"><div class="tagrow" style="margin:0">${p.tags.slice(0,3).map(t=>`<span class="chip">${t}</span>`).join('')}</div>
    <div class="why"><b>Why we matched you</b>${esc(p.why)}</div>${act}</div></article>`;
 }
@@ -295,7 +350,9 @@ function pMatches(){
     dt.stage==='proposed'?`<div class="banner"><div style="font-size:1.8rem">📅</div><div style="flex:1"><b>Date proposal in progress with ${esc(person(dt.withId).name)}</b></div><a class="btn primary sm" href="#/schedule">Open</a></div>`:'';
   const monday=new Date(today().getTime()-((today().getDay()+6)%7)*864e5).toLocaleDateString('en-US',{month:'long',day:'numeric'});
   return `<div class="wrap"><div class="pagehead"><div class="eyebrow">Week of ${monday} · ${esc(regionName(state.user.region))}</div>
-   <h2>Hi ${esc(me())}, here are your ${list.length} matches.</h2><p class="muted" style="margin-top:8px">Hand-picked from verified locals within ${state.user.distance} miles. New matches arrive every Monday morning.</p>${dateBanner}</div>
+   <h2>Hi ${esc(me())}, here ${list.length===1?'is your 1 match':'are your '+list.length+' matches'}.</h2><p class="muted" style="margin-top:8px">Hand-picked from verified locals within ${state.user.distance} miles, weighted by what you said matters most. New matches arrive every Monday morning.</p>${dateBanner}</div>
+   ${hiddenList().length?`<div class="hidenote">🚫 ${hiddenList().length} ${hiddenList().length===1?'person was':'people were'} hidden by your dealbreakers (${[...new Set(hiddenList().flatMap(p=>scoreOf(p).blocked.map(r=>Q_LABEL[r.k])))].join(', ')}). <a class="accent" href="#/onboarding">Review</a></div>`:''}
+   ${list.length?'':`<div class="card center" style="margin-bottom:20px"><b>No matches fit your dealbreakers this week.</b><p class="muted small" style="margin-top:6px">Try loosening one on the <a class="accent" href="#/onboarding">preferences page</a>.</p></div>`}
    <div class="mgrid">${list.map(p=>mCard(p)).join('')}</div>
    <div class="card center" style="margin-bottom:50px"><b>That's your week.</b><p class="muted small" style="margin-top:4px">Want to look around? <a class="accent" href="#/matches" data-act="browse">Browse everyone in your region</a> (verified members only).</p></div></div>`;
 }
@@ -315,11 +372,13 @@ function pProfile(id){
       <div class="dots" id="dots">${imgs.map((_,i)=>`<i class="${i===0?'on':''}"></i>`).join('')}</div>
       <button class="nav l" data-act="car" data-d="-1" aria-label="Previous photo">‹</button><button class="nav r" data-act="car" data-d="1" aria-label="Next photo">›</button></div>
     <div>
-      <div class="row" style="gap:10px;margin-bottom:6px">${vbadge('ID Verified · 18+')}<span class="chip amber">${p.score}% match</span></div>
+      <div class="row" style="gap:10px;margin-bottom:6px">${vbadge('ID Verified · 18+')}<span class="chip amber">${scoreOf(p).score}% match</span></div>
       <div class="pname">${p.name}, <span>${p.age}</span></div>
       <div class="muted" style="margin-top:6px">📍 ${p.town}, IL · ${p.dist} miles away</div>
       <div class="tagrow">${p.tags.map(t=>`<span class="chip">${t}</span>`).join('')}</div>
       <div class="why" style="margin:6px 0 4px"><b>Why we matched you</b>${esc(p.why)}</div>
+      ${scoreOf(p).blocked.length?`<div class="banner" style="margin:10px 0;border-color:#ff5a3c"><div class="small"><b>Outside your dealbreakers:</b> ${scoreOf(p).blocked.map(r=>Q_LABEL[r.k]).join(', ')}. ${esc(p.name)} wouldn't normally show up in your matches.</div></div>`:''}
+      ${lineup(p)}
       ${p.prompts.map(q=>`<div class="prompt"><small>${esc(q[0])}</small><p>${esc(q[1])}</p></div>`).join('')}
       <div class="psec"><h4>Interests</h4><div class="tagrow" style="margin:0">${p.interests.map(i=>`<span class="chip on">${i}</span>`).join('')}</div></div>
       <div class="card small muted" style="margin-top:24px">🔒 ${matched?`You and ${p.name} are a match. Pick a local spot and propose some times.`:`When you both tap Interested, “Schedule a date” unlocks. No chatting required to get to a first date.`}</div>
@@ -548,6 +607,7 @@ document.addEventListener('click',e=>{
    case 'vnext': verify.step++; render(); return;
    case 'vback': verify.step--; render(); return;
    case 'verified': state.user.verified=true; save(); return;
+   case 'imp': state.user.imp=Object.assign({},state.user.imp||{}); state.user.imp[D.k]=D.v; save(); render(); return;
    case 'pick': state.user[D.k]=D.v; save(); render(); return;
    case 'obnext': if(ob.step<4){ob.step++;render();} else {state.user.onboarded=true;save();ob.step=1;location.hash='#/matches';} return;
    case 'obback': ob.step--; render(); return;
