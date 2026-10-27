@@ -316,3 +316,12 @@ input[type=range]{accent-color:var(--accent);width:100%}
 .impt{font-style:normal;font-size:.66rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:2px 8px;white-space:nowrap}
 .impt.deal{color:#ff9a86;border-color:var(--accent)} .impt.very{color:var(--amber);border-color:rgba(255,198,92,.5)}
 .hidenote{background:rgba(255,90,60,.08);border:1px dashed rgba(255,90,60,.4);border-radius:14px;padding:10px 14px;margin:14px 0;font-size:.88rem}
+
+.imp .vis{margin-left:auto;font-size:.72rem;font-weight:600;padding:4px 10px;border-radius:999px;border:1px solid var(--line);color:var(--muted);background:var(--bg);white-space:nowrap}
+.imp .vis.priv{color:var(--amber);border-color:rgba(255,198,92,.5);background:rgba(255,198,92,.08)}
+.imp .vis:hover{color:var(--text)}
+.rbar{display:block;height:6px;border-radius:99px;background:rgba(255,255,255,.1);margin:8px 0 4px;overflow:hidden;min-width:140px}
+.rbar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--amber),var(--accent))}
+.region .st{display:block}
+.notifprev{background:var(--bg);border:1px solid var(--line);border-radius:14px;padding:12px 14px;font-size:.88rem;margin:8px 0 10px;color:var(--text)}
+.invitebox{font-family:ui-monospace,monospace;font-size:.8rem;background:var(--bg);border:1px dashed var(--muted);border-radius:12px;padding:10px 12px;margin-top:10px;word-break:break-all;color:var(--amber)}

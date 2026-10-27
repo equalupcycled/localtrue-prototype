@@ -89,9 +89,9 @@ VENUES.cape = VENUES.carbondale.map(v=>({...v})); VENUES.paducah = VENUES.carbon
 const venuesFor = r=>VENUES[r]||VENUES.carbondale;
 
 /* ---------- state ---------- */
-const KEY='lt_state_v1';
-const DEF = {loggedIn:false, user:{name:'Alex',email:'',verified:false,gender:'man',interested:'women',ageMin:27,ageMax:38,distance:30,looking:'serious',kids:'open',faith:'any',drinking:'social',smoking:'never',region:'carbondale',onboarded:false},
-  swipes:{}, matched:{}, view:'me', date:{withId:null,venueId:null,stage:'none',proposal:null,confirmed:null,venueStatus:'none',suggested:null,code:null}, biz:{s1:'pending'}, waitlist:{}};
+const KEY='lt_state_v2';
+const DEF = {loggedIn:false, user:{name:'Alex',email:'',verified:false,gender:'man',interested:'women',ageMin:27,ageMax:38,distance:30,looking:'serious',kids:'none',futureKids:'open',faith:'any',drinking:'social',smoking:'never',politics:'moderate',relImp:'some',timeline:'someday',smokeTol:'rare',drinkTol:'social',pets:'both',loveLang:'time',seeFreq:'few',eduImp:'some',imp:{},vis:{politics:'priv'},region:'carbondale',onboarded:false},
+  swipes:{}, matched:{}, view:'me', date:{withId:null,venueId:null,stage:'none',proposal:null,confirmed:null,venueStatus:'none',suggested:null,code:null}, biz:{s1:'pending'}, waitlist:{}, opened:{}, notify:{email:true,text:true}, invites:0};
 let state;
 try{ state = Object.assign({},JSON.parse(JSON.stringify(DEF)),JSON.parse(localStorage.getItem(KEY)||'{}')); }catch(e){ state=JSON.parse(JSON.stringify(DEF)); }
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){}};
@@ -128,42 +128,80 @@ const me=()=>state.user.name||'Alex';
 const other=()=>person(state.date.withId)||PEOPLE.find(p=>p.g===state.user.interested)||PEOPLE[0];
 const myPhoto=()=>photo(7,1);
 
-const ATTR={jess:{looking:'serious',kids:'none',faith:'spiritual',drinking:'social',smoking:'never'},
- amber:{looking:'serious',kids:'have',faith:'christian',drinking:'no',smoking:'never'},
- kayla:{looking:'serious',kids:'open',faith:'christian',drinking:'social',smoking:'never'},
- lindsey:{looking:'serious',kids:'want',faith:'any',drinking:'social',smoking:'never'},
- tyler:{looking:'serious',kids:'none',faith:'christian',drinking:'social',smoking:'never'},
- cody:{looking:'serious',kids:'open',faith:'christian',drinking:'social',smoking:'never'},
- ben:{looking:'serious',kids:'have',faith:'spiritual',drinking:'no',smoking:'never'},
- josh:{looking:'casual',kids:'open',faith:'any',drinking:'social',smoking:'occasional'}};
-PEOPLE.forEach(p=>{p.a=ATTR[p.id];});
+const ATTR={
+ jess:{looking:'serious',kids:'none',futureKids:'no',faith:'spiritual',drinking:'social',smoking:'never',politics:'moderate',relImp:'some',timeline:'someday',smokeTol:'no',drinkTol:'social',pets:'dog',loveLang:'time',seeFreq:'few',eduImp:'some',edu:'degree',priv:['politics','timeline']},
+ amber:{looking:'serious',kids:'have',futureKids:'open',faith:'christian',drinking:'no',smoking:'never',politics:'conservative',relImp:'very',timeline:'soon',smokeTol:'no',drinkTol:'none',pets:'both',loveLang:'acts',seeFreq:'few',eduImp:'some',edu:'degree',priv:['politics','seeFreq']},
+ kayla:{looking:'serious',kids:'none',futureKids:'open',faith:'christian',drinking:'social',smoking:'never',politics:'conservative',relImp:'some',timeline:'someday',smokeTol:'rare',drinkTol:'social',pets:'dog',loveLang:'touch',seeFreq:'daily',eduImp:'low',edu:'some',priv:['politics']},
+ lindsey:{looking:'serious',kids:'none',futureKids:'want',faith:'any',drinking:'social',smoking:'never',politics:'moderate',relImp:'low',timeline:'soon',smokeTol:'no',drinkTol:'ok',pets:'cat',loveLang:'gifts',seeFreq:'few',eduImp:'low',edu:'trade',priv:['loveLang','timeline']},
+ tyler:{looking:'serious',kids:'none',futureKids:'no',faith:'christian',drinking:'social',smoking:'never',politics:'conservative',relImp:'some',timeline:'someday',smokeTol:'rare',drinkTol:'ok',pets:'dog',loveLang:'acts',seeFreq:'few',eduImp:'low',edu:'trade',priv:['politics']},
+ cody:{looking:'serious',kids:'none',futureKids:'open',faith:'christian',drinking:'social',smoking:'never',politics:'conservative',relImp:'very',timeline:'someday',smokeTol:'rare',drinkTol:'ok',pets:'dog',loveLang:'time',seeFreq:'week',eduImp:'low',edu:'some',priv:['politics','eduImp']},
+ ben:{looking:'serious',kids:'have',futureKids:'open',faith:'spiritual',drinking:'no',smoking:'never',politics:'moderate',relImp:'some',timeline:'someday',smokeTol:'no',drinkTol:'none',pets:'dog',loveLang:'time',seeFreq:'week',eduImp:'some',edu:'some',priv:['seeFreq']},
+ josh:{looking:'casual',kids:'none',futureKids:'open',faith:'any',drinking:'social',smoking:'occasional',politics:'liberal',relImp:'low',timeline:'slow',smokeTol:'ok',drinkTol:'ok',pets:'cat',loveLang:'words',seeFreq:'few',eduImp:'high',edu:'degree',priv:[]}};
+PEOPLE.forEach(p=>{p.a=ATTR[p.id];p.priv=p.a.priv;});
 PEOPLE.find(p=>p.id==='josh').tags[0]='🙂 Casual, seeing where it goes';
 
-/* ---------- match importance engine ---------- */
+/* ---------- questions & match importance engine ---------- */
 const IMP=[['deal','Dealbreaker'],['very','Very important'],['some','Somewhat'],['none',"Doesn't matter"]];
 const IMP_W={deal:4,very:3,some:1.5,none:0};
-const IMP_DEF={looking:'very',age:'very',distance:'some',kids:'some',faith:'some',drinking:'some',smoking:'some'};
-const Q_LABEL={looking:'What you want',age:'Age',distance:'Distance',kids:'Kids',faith:'Faith',drinking:'Drinking',smoking:'Smoking'};
+const IMP_DEF={looking:'very',age:'very',distance:'some',kids:'some',futureKids:'very',faith:'some',drinking:'some',smoking:'some',politics:'some',relImp:'some',timeline:'some',smokeTol:'some',drinkTol:'some',pets:'none',loveLang:'none',seeFreq:'some',eduImp:'none'};
+const VIS_DEF={politics:'priv'};
+const Q_LABEL={looking:'What you want',age:'Age',distance:'Distance',kids:'Kids',futureKids:'Future kids',faith:'Faith',drinking:'Drinking',smoking:'Smoking',politics:'Political beliefs',relImp:'Importance of religion',timeline:'Relationship timeline',smokeTol:'Partner smoking',drinkTol:'Partner drinking',pets:'Pets',loveLang:'Love language',seeFreq:'How often to see each other',eduImp:'Education'};
+const Q_ICON={looking:'💍',kids:'👶',futureKids:'🍼',faith:'⛪',drinking:'🍷',smoking:'🚭',politics:'🗳️',relImp:'🙏',timeline:'⏳',smokeTol:'🚬',drinkTol:'🥂',pets:'🐾',loveLang:'💌',seeFreq:'📆',eduImp:'🎓'};
+const LABELS={
+ looking:{serious:'Something serious',casual:'Casual dating',friends:'Friends first'},
+ kids:{none:'No kids',have:'Has kids'},
+ futureKids:{want:'Wants kids someday',open:'Open to kids',no:"Doesn't want (more) kids"},
+ faith:{any:'Open on faith',christian:'Christian',spiritual:'Spiritual',other:'Other faith',none:'Not religious'},
+ drinking:{no:'Rarely drinks',social:'Drinks socially',often:'Drinks regularly'},
+ smoking:{never:'Non-smoker',occasional:'Occasional smoker',yes:'Smoker'},
+ politics:{liberal:'Liberal',moderate:'Moderate',conservative:'Conservative',apolitical:'Not into politics'},
+ relImp:{very:'Religion very important',some:'Religion somewhat important',low:'Religion not important'},
+ timeline:{soon:'Marriage-minded, ~2 years',someday:'Marriage in a few years',slow:'No rush on a timeline'},
+ smokeTol:{ok:'Fine with smokers',rare:'OK with occasional smoking',no:'Prefers non-smokers'},
+ drinkTol:{ok:'Fine with drinking',social:'OK with social drinking',none:'Prefers a non-drinker'},
+ pets:{dog:'Dog person',cat:'Cat person',both:'Loves both',none:'No pets'},
+ loveLang:{words:'Words of affirmation',time:'Quality time',touch:'Physical touch',gifts:'Gifts',acts:'Acts of service'},
+ seeFreq:{daily:'Almost every day',few:'A few times a week',week:'About once a week',space:'Needs lots of space'},
+ eduImp:{high:'Education very important',some:'Education somewhat important',low:'Education not important'},
+ edu:{degree:'College degree',some:'Some college',trade:'Trade / vocational'}};
 const imp=k=>((state.user.imp||{})[k])||IMP_DEF[k];
-const LABELS={looking:{serious:'Something serious',casual:'Casual dating',friends:'Friends first'},kids:{none:"Doesn't want kids",have:'Has kids',want:'Wants kids',open:'Open to kids'},faith:{any:'Open on faith',christian:'Christian',spiritual:'Spiritual',other:'Other faith',none:'Not religious'},drinking:{no:'Rarely drinks',social:'Drinks socially',often:'Drinks regularly'},smoking:{never:'Non-smoker',occasional:'Occasional smoker',yes:'Smoker'}};
-function compat(k,want,has){
+const visOf=k=>((state.user.vis||{})[k])||VIS_DEF[k]||'show';
+const regOpen=id=>{const r=REGIONS.find(x=>x.id===id);return !!r&&(r.status==='open'||!!(state.opened&&state.opened[id]));};
+const ord=(list,step)=>(w,h)=>Math.max(.05,1-step*Math.abs(list.indexOf(w)-list.indexOf(h)));
+function compat(k,want,p){
+  const has=p.a[k];
+  if(k==='smokeTol'){const h=p.a.smoking;return {never:1,occasional:{ok:1,rare:.8,no:0}[want],yes:{ok:1,rare:.4,no:0}[want]}[h]??1;}
+  if(k==='drinkTol'){const h=p.a.drinking;return {no:1,social:{ok:1,social:1,none:0}[want],often:{ok:1,social:.4,none:0}[want]}[h]??1;}
+  if(k==='eduImp'){const h=p.a.edu;return {high:{degree:1,some:.55,trade:.4},some:{degree:1,some:.85,trade:.7},low:{degree:1,some:1,trade:1}}[want][h]??1;}
   if(want===has) return 1;
+  if(k==='relImp') return ord(['very','some','low'],.5)(want,has);
+  if(k==='timeline') return ord(['soon','someday','slow'],.45)(want,has);
+  if(k==='seeFreq') return ord(['daily','few','week','space'],.3)(want,has);
+  if(k==='loveLang') return .55;
+  if(k==='pets') return {dog:{cat:.4,both:.85,none:.3},cat:{dog:.4,both:.85,none:.3},both:{dog:.85,cat:.85,none:.4},none:{dog:.3,cat:.3,both:.4}}[want][has]??.5;
+  if(k==='faith'){ if(want==='any'||has==='any') return 1; const pair=[want,has].sort().join(); return pair==='christian,spiritual'?.4:pair==='other,spiritual'?.5:0; }
   const M={
    looking:{serious:{casual:.2,friends:.5},casual:{serious:.3,friends:.7},friends:{serious:.6,casual:.7}},
-   kids:{none:{have:0,want:0,open:.5},have:{none:0,want:.6,open:.9},want:{none:0,have:.6,open:.8},open:{none:.6,have:.9,want:.9}},
+   kids:{none:{have:.4},have:{none:.4}},
+   futureKids:{want:{no:0,open:.8},no:{want:0,open:.7},open:{want:.8,no:.7}},
    drinking:{no:{social:.5,often:0},social:{no:.6,often:.6},often:{no:0,social:.6}},
-   smoking:{never:{occasional:.35,yes:0},occasional:{never:.6,yes:.6},yes:{never:.2,occasional:.6}}};
-  if(k==='faith'){ if(want==='any'||has==='any') return 1; const pair=[want,has].sort().join(); return pair==='christian,spiritual'?.4:pair==='other,spiritual'?.5:0; }
+   smoking:{never:{occasional:.35,yes:0},occasional:{never:.6,yes:.6},yes:{never:.2,occasional:.6}},
+   politics:{liberal:{moderate:.65,conservative:0,apolitical:.6},moderate:{liberal:.65,conservative:.65,apolitical:.7},conservative:{liberal:0,moderate:.65,apolitical:.6},apolitical:{liberal:.6,moderate:.7,conservative:.6}}};
   return ((M[k]||{})[want]||{})[has]??0;
 }
+const THEIRS={smokeTol:p=>LABELS.smoking[p.a.smoking],drinkTol:p=>LABELS.drinking[p.a.drinking],eduImp:p=>LABELS.edu[p.a.edu]};
+const PRIVKEY={smokeTol:'smoking',drinkTol:'drinking'};
+const isPriv=(p,k)=>p.priv.includes(PRIVKEY[k]||k);
+const QKEYS=['looking','age','distance','kids','futureKids','faith','drinking','smoking','politics','relImp','timeline','smokeTol','drinkTol','pets','loveLang','seeFreq','eduImp'];
 function scoreOf(p){
   const u=state.user, rows=[];
-  const add=(k,c,mine,theirs)=>rows.push({k,c,imp:imp(k),mine,theirs});
-  add('looking',compat('looking',u.looking,p.a.looking),LABELS.looking[u.looking],LABELS.looking[p.a.looking]);
-  const ad=p.age<u.ageMin?u.ageMin-p.age:p.age>u.ageMax?p.age-u.ageMax:0;
-  add('age',ad===0?1:ad<=2?.5:0,`${u.ageMin}–${u.ageMax}`,`${p.age}`);
-  add('distance',p.dist<=u.distance?1:p.dist<=u.distance*1.3?.4:0,`within ${u.distance} mi`,`${p.dist} mi`);
-  ['kids','faith','drinking','smoking'].forEach(k=>add(k,compat(k,u[k],p.a[k===('kids')?'kids':k]),LABELS[k][u[k]]||'Not important',LABELS[k][p.a[k]]));
+  QKEYS.forEach(k=>{
+    let c,mine,theirs;
+    if(k==='age'){const ad=p.age<u.ageMin?u.ageMin-p.age:p.age>u.ageMax?p.age-u.ageMax:0;c=ad===0?1:ad<=2?.5:0;mine=`${u.ageMin}–${u.ageMax}`;theirs=`${p.age}`;}
+    else if(k==='distance'){c=p.dist<=u.distance?1:p.dist<=u.distance*1.3?.4:0;mine=`within ${u.distance} mi`;theirs=`${p.dist} mi`;}
+    else{c=compat(k,u[k],p);mine=(LABELS[k]||{})[u[k]]||'Not set';theirs=THEIRS[k]?THEIRS[k](p):LABELS[k][p.a[k]];}
+    rows.push({k,c,imp:imp(k),mine,theirs,priv:k!=='age'&&k!=='distance'&&isPriv(p,k)});
+  });
   let w=0,t=0,blocked=[];
   rows.forEach(r=>{const wt=IMP_W[r.imp]; if(r.imp==='deal'&&r.c<.5) blocked.push(r); w+=wt; t+=wt*r.c;});
   const fit=w?t/w:1;
@@ -173,10 +211,24 @@ function scoreOf(p){
 const matchAll=()=>PEOPLE.filter(p=>p.g===state.user.interested);
 const matchList=()=>matchAll().map(p=>({p,s:scoreOf(p)})).filter(x=>!x.s.blocked.length).sort((a,b)=>b.s.score-a.s.score).map(x=>x.p);
 const hiddenList=()=>matchAll().filter(p=>scoreOf(p).blocked.length);
+const CHIP_ORDER=['looking','kids','futureKids','faith','drinking','smoking','politics','relImp','timeline','smokeTol','drinkTol','pets','loveLang','seeFreq','eduImp'];
+function chipsFrom(get,isPrivate,n){
+  const out=CHIP_ORDER.filter(k=>!isPrivate(k)&&get(k)&&LABELS[k][get(k)]).map(k=>`<span class="chip">${Q_ICON[k]} ${esc(LABELS[k][get(k)])}</span>`);
+  return n?out.slice(0,n):out;
+}
+const publicChips=(p,n)=>chipsFrom(k=>p.a[k],k=>p.priv.includes(k),n);
+const align=c=>c>=.85?'Aligned':c>=.5?'Partly aligned':'Not aligned';
 
+
+function regCount(r){return regOpen(r.id)&&r.status!=='open'?250:r.status==='open'?250-r.left:r.wl+(state.waitlist[r.id]?1:0);}
+function regionProgress(r){
+  const n=regCount(r), pct=Math.min(100,Math.round(n/250*100));
+  return `<span class="rbar"><i style="width:${pct}%"></i></span><span class="st">${r.status==='open'?`${n} of 250 founding spots claimed · ${r.left} left`:regOpen(r.id)?'Open · 250 of 250 verified':`${n} of 250 verified members · ${250-n} to go`}</span>`;
+}
 
 /* ---------- nav ---------- */
 function renderNav(route){
+  const wait=!regOpen(state.user.region);
   const appMode = state.loggedIn && !['','login','signup','verify'].includes(route);
   const lk=(h,l,on)=>`<a href="${h}" class="${on?'on':''}">${l}</a>`;
   let html='';
@@ -187,10 +239,10 @@ function renderNav(route){
     document.body.classList.remove('has-tabs');
   } else {
     html=`<div class="topbar"><div class="in">${brandLink}<div class="spacer"></div>
-      <nav class="navlinks hide-m">${lk('#/matches','This week',route==='matches'||route==='profile')}${lk('#/schedule','Dates',route==='schedule')}${lk('#/business','Business view',route==='business')}${lk('#/onboarding','Preferences',route==='onboarding')}</nav>
+      <nav class="navlinks hide-m">${wait?lk('#/waiting','Waitlist',route==='waiting'):lk('#/matches','This week',route==='matches'||route==='profile')}${wait?'':lk('#/schedule','Dates',route==='schedule')}${lk('#/business','Business view',route==='business')}${lk('#/onboarding','Preferences',route==='onboarding')}</nav>
       <img class="avatar-sm" src="${myPhoto()}" alt="">
       </div></div>
-      <nav class="tabbar"><a href="#/matches" class="${route==='matches'||route==='profile'?'on':''}"><span>💞</span>Matches</a><a href="#/schedule" class="${route==='schedule'?'on':''}"><span>📅</span>Dates</a><a href="#/business" class="${route==='business'?'on':''}"><span>🏪</span>Business</a><a href="#/onboarding" class="${route==='onboarding'?'on':''}"><span>⚙️</span>Prefs</a></nav>`;
+      <nav class="tabbar">${wait?`<a href="#/waiting" class="${route==='waiting'?'on':''}"><span>⏳</span>Waitlist</a>`:`<a href="#/matches" class="${route==='matches'||route==='profile'?'on':''}"><span>💞</span>Matches</a><a href="#/schedule" class="${route==='schedule'?'on':''}"><span>📅</span>Dates</a>`}<a href="#/business" class="${route==='business'?'on':''}"><span>🏪</span>Business</a><a href="#/onboarding" class="${route==='onboarding'?'on':''}"><span>⚙️</span>Prefs</a></nav>`;
     document.body.classList.add('has-tabs');
   }
   $('#nav').innerHTML=html;
@@ -199,7 +251,7 @@ let fabOpen=false;
 function renderFab(){
   $('#fab').innerHTML=`${fabOpen?`<div class="fab-menu"><small>Jump to screen</small>
   <a href="#/">1 · Landing</a><a href="#/signup">2 · Sign up + ID verify</a><a href="#/login">2b · Log in</a><a href="#/onboarding">3 · “Interested in”</a><a href="#/matches">4 · Weekly matches</a><a href="#/profile/jess">5 · Profile</a><a href="#/schedule">6 · Schedule a date</a><a href="#/business">7 · Business view</a><hr>
-  <button data-act="demo-login">⚡ Skip to logged-in demo</button><button data-act="reset">↺ Reset demo data</button></div>`:''}<button class="fab-btn" data-act="fab">🧭 Demo menu</button>`;
+  <a href="#/waiting" data-act="demo-waiting">3b · Waiting screen (Paducah)</a><button data-act="demo-login">⚡ Skip to logged-in demo</button><button data-act="reset">↺ Reset demo data</button></div>`:''}<button class="fab-btn" data-act="fab">🧭 Demo menu</button>`;
 }
 
 /* ---------- landing ---------- */
@@ -228,9 +280,9 @@ function pLanding(){
     </div></div></section>
 
   <section id="regions" data-sec="regions" style="padding-top:20px"><div class="wrap"><div class="eyebrow">Regions</div><h2>Pick your home town area.</h2>
-    <p class="lead" style="margin:10px 0 24px">Like classifieds, but for dating: you only see and match with people near you. We open a region when enough locals join its waitlist.</p>
-    <div class="grid g2">${REGIONS.map(r=>`<button class="region" data-act="region" data-id="${r.id}"><span class="dot" style="background:${r.status==='open'?'var(--green)':r.status==='soon'?'var(--amber)':'#8d7d72'}"></span><span><span class="nm">${r.name}</span><br><span class="st">${r.towns}</span></span>
-      <span class="tag ${r.status==='open'?'open':r.status==='soon'?'soon':'wl'}">${r.status==='open'?'Open now':r.status==='soon'?'Opening soon':state.waitlist[r.id]?'On the list ✓':'Join waitlist'}</span></button>`).join('')}</div></div></section>
+    <p class="lead" style="margin:10px 0 24px">Like classifieds, but for dating: you only see and match with people near you. A region opens once 250 ID-verified locals have joined its waitlist. Join the queue with a real, verified account and we'll notify you the day it opens.</p>
+    <div class="grid g2">${REGIONS.map(r=>`<button class="region" data-act="region" data-id="${r.id}"><span class="dot" style="background:${r.status==='open'?'var(--green)':r.status==='soon'?'var(--amber)':'#8d7d72'}"></span><span style="flex:1"><span class="nm">${r.name}</span><br><span class="st">${r.towns}</span>${regionProgress(r)}</span>
+      <span class="tag ${regOpen(r.id)?'open':r.status==='soon'?'soon':'wl'}">${regOpen(r.id)?'Open now':state.waitlist[r.id]?'In the queue ✓':r.status==='soon'?'Almost there':'Join waitlist'}</span></button>`).join('')}</div></div></section>
 
   <section><div class="wrap"><div class="offer">
     <div><div class="eyebrow">Founding member offer</div><h2>The first 250 verified members in every region are free.</h2>
@@ -253,6 +305,7 @@ function pAuth(mode){
   return `<div class="auth"><div class="narrow" style="max-width:480px">
    <div class="tabs"><a href="#/signup" class="${mode==='signup'?'on':''}">Sign up</a><a href="#/login" class="${mode==='login'?'on':''}">Log in</a></div>
    ${mode==='signup'?`
+    ${!regOpen(state.user.region)?`<div class="banner" style="margin-bottom:14px"><div class="small"><b>Joining the ${esc(regionName(state.user.region).split(' / ')[0])} queue.</b> Create a real account and verify your ID. Only verified members count toward the 250 that opens your region.</div></div>`:''}
     <h2 style="font-size:2rem">Create your account</h2><p class="muted" style="margin-top:6px">Free for founding members. Next step: verify your ID.</p>
     <form data-form="signup">
       <label class="f">First name</label><input type="text" name="name" placeholder="Alex" required>
@@ -288,31 +341,39 @@ function pVerify(){
 /* ---------- onboarding ---------- */
 const OPT={
  looking:[['serious','Something serious','A real relationship'],['casual','Casual dating','See where it goes'],['friends','Friends first','Take it slow']],
- kids:[['none',"Don't want kids"],['have','Have kids'],['want','Want kids someday'],['open','Open to it']],
  faith:[['any','Not important'],['christian','Christian'],['spiritual','Spiritual'],['other','Other faith'],['none','Not religious']],
  drinking:[['no','Never'],['social','Socially'],['often','Regularly']],
  smoking:[['never','Never'],['occasional','Occasionally'],['yes','Yes']]};
+['kids','futureKids','politics','relImp','timeline','smokeTol','drinkTol','pets','loveLang','seeFreq','eduImp'].forEach(k=>{OPT[k]=Object.entries(LABELS[k]);});
+OPT.kids=[['none',"I don't have kids"],['have','I have kids']];
+OPT.eduImp=[['high','Very important'],['some','Somewhat'],['low',"Doesn't matter"]];
+OPT.relImp=[['very','Very important'],['some','Somewhat'],['low','Not important']];
 const IMPS={deal:'Dealbreaker',very:'Very',some:'Somewhat',none:"Doesn't matter"};
-function impRow(k){const cur=imp(k);return `<div class="imp"><span class="lbl">How important is it that this matches?</span><div class="seg" role="group">${IMP.map(([v,l])=>`<button class="${cur===v?'on '+v:''}" data-act="imp" data-k="${k}" data-v="${v}">${v==='very'?'Very important':l}</button>`).join('')}</div></div>`;}
+function impRow(k,noVis){const cur=imp(k),v=visOf(k);return `<div class="imp"><span class="lbl">How important is it that this matches?</span><div class="seg" role="group">${IMP.map(([x,l])=>`<button class="${cur===x?'on '+x:''}" data-act="imp" data-k="${k}" data-v="${x}">${l}</button>`).join('')}</div>${noVis?'':`<button class="vis ${v}" data-act="vis" data-k="${k}" title="Private answers still help us match you, but are never shown on your profile">${v==='priv'?'🔒 Private':'🔓 Shown'}</button>`}</div>`;}
 function optGroup(k,big){return `<div class="opts">${OPT[k].map(o=>`<button class="opt ${big?'big':''} ${state.user[k]===o[0]?'on':''}" data-act="pick" data-k="${k}" data-v="${o[0]}">${o[1]}${o[2]?`<small>${o[2]}</small>`:''}</button>`).join('')}</div>${impRow(k)}`;}
+const qb=(k,title,big)=>`<div class="q">${title}</div>${optGroup(k,big)}`;
+const previewBtn=()=>`<button class="btn ghost sm" data-act="preview" style="float:right">👁 Preview profile</button>`;
 function pOnboard(){
-  const u=state.user, st=ob.step, N=4;
+  const u=state.user, st=ob.step, N=5;
   let b='';
-  if(st===1) b=`<h2 style="font-size:1.9rem">Let's find your people</h2><p class="muted" style="margin-top:6px">Takes about a minute.</p>
+  if(st===1) b=`<h2 style="font-size:1.9rem">Let's find your people</h2><p class="muted" style="margin-top:6px">Takes about two minutes. Everything is private until you choose to show it.</p>
     <div class="q">I am a…</div><div class="opts">${[['man','Man'],['woman','Woman']].map(o=>`<button class="opt big ${u.gender===o[0]?'on':''}" data-act="pick" data-k="gender" data-v="${o[0]}">${o[1]}</button>`).join('')}</div>
     <div class="q">Interested in…</div><div class="opts">${[['women','Women'],['men','Men']].map(o=>`<button class="opt big ${u.interested===o[0]?'on':''}" data-act="pick" data-k="interested" data-v="${o[0]}">${o[1]}</button>`).join('')}</div>
-    <div class="q">I'm looking for…</div>${optGroup('looking',true)}`;
+    ${qb('looking',"I'm looking for…",true)}`;
   if(st===2) b=`<h2 style="font-size:1.9rem">Age &amp; distance</h2>
     <div class="q">Age range <span class="bigval" id="ageout" style="margin-left:8px">${u.ageMin}–${u.ageMax}</span></div>
-    <div class="dual"><div class="track"></div><div class="fill" id="agefill"></div><input type="range" min="18" max="80" value="${u.ageMin}" id="ageMin"><input type="range" min="18" max="80" value="${u.ageMax}" id="ageMax"></div>${impRow('age')}
+    <div class="dual"><div class="track"></div><div class="fill" id="agefill"></div><input type="range" min="18" max="80" value="${u.ageMin}" id="ageMin"><input type="range" min="18" max="80" value="${u.ageMax}" id="ageMax"></div>${impRow('age',true)}
     <div class="q">Distance <span class="bigval" id="distout" style="margin-left:8px">${u.distance} mi</span></div>
-    <input type="range" min="5" max="100" step="5" value="${u.distance}" id="dist"><div class="small muted" style="margin-top:6px">Small-town friendly: most of your matches will be within 30 miles.</div>${impRow('distance')}`;
-  if(st===3) b=`<h2 style="font-size:1.9rem">About you &amp; what matters</h2>
-    <p class="muted small" style="margin-top:6px">Under each question, tell us how much it matters. <b style="color:var(--text)">Dealbreakers</b> hide people who don't fit; the rest weight your match scores.</p><div class="q">Kids</div>${optGroup('kids')}<div class="q">Faith</div>${optGroup('faith')}<div class="q">Drinking</div>${optGroup('drinking')}<div class="q">Smoking</div>${optGroup('smoking')}`;
-  if(st===4) b=`<h2 style="font-size:1.9rem">Choose your region</h2><p class="muted" style="margin-top:6px">You'll be matched with verified people in this area. Regions marked soon let you join the waitlist.</p>
-    <div class="grid" style="margin-top:18px;gap:10px">${REGIONS.map(r=>`<button class="region" style="${u.region===r.id?'border-color:var(--accent);background:rgba(255,90,60,.1)':''}" data-act="pick" data-k="region" data-v="${r.id}"><span class="dot" style="background:${r.status==='open'?'var(--green)':'var(--amber)'}"></span><span><span class="nm">${r.name}</span><br><span class="st">${r.towns}</span></span><span class="tag ${r.status==='open'?'open':'wl'}">${r.status==='open'?'Open now':'Waitlist'}</span></button>`).join('')}</div>`;
-  return `<div class="auth"><div class="narrow" style="max-width:560px"><div class="progress">${Array.from({length:N},(_,i)=>`<i class="${st>i?'on':''}"></i>`).join('')}</div>
-   <div class="card" style="padding:26px">${b}<div class="row" style="margin-top:28px">${st>1?'<button class="btn ghost" data-act="obback">← Back</button>':''}<button class="btn primary lg" style="flex:1" data-act="obnext">${st===N?'See my matches →':'Next →'}</button></div></div></div></div>`;
+    <input type="range" min="5" max="100" step="5" value="${u.distance}" id="dist"><div class="small muted" style="margin-top:6px">Small-town friendly: most of your matches will be within 30 miles.</div>${impRow('distance',true)}`;
+  if(st===3) b=`${previewBtn()}<h2 style="font-size:1.9rem">Values &amp; beliefs</h2><p class="muted small" style="margin-top:6px">Under each question, tell us how much it matters. <b style="color:var(--text)">Dealbreakers</b> hide people who don't fit; the rest weight your match scores. Tap <b style="color:var(--text)">🔓 Shown / 🔒 Private</b> to choose whether an answer appears on your profile. Private answers still help us match you, but nobody else ever sees them.</p>
+    ${qb('politics','Your political beliefs')}${qb('faith','Faith')}${qb('relImp','How important is religion in your life?')}${qb('kids','Kids')}${qb('futureKids','Do you want kids in the future?')}${qb('timeline','Relationship timeline')}`;
+  if(st===4) b=`${previewBtn()}<h2 style="font-size:1.9rem">Lifestyle &amp; chemistry</h2><p class="muted small" style="margin-top:6px">The small stuff that decides whether a second date feels easy.</p>
+    ${qb('drinking','Your drinking')}${qb('smoking','Your smoking')}${qb('smokeTol','How do you feel about a partner who smokes?')}${qb('drinkTol','How do you feel about a partner who drinks?')}${qb('pets','Pets')}${qb('loveLang','Love language')}${qb('seeFreq','How often do you want to see your partner?')}${qb('eduImp',"How important is a partner's education?")}`;
+  if(st===5){const wl=!regOpen(u.region); b=`<h2 style="font-size:1.9rem">Choose your region</h2><p class="muted" style="margin-top:6px">You'll be matched with verified people in this area. Regions still filling up put you in the queue: we open a region once <b style="color:var(--text)">250 verified members</b> have joined, and we'll notify you the moment it does.</p>
+    <div class="grid" style="margin-top:18px;gap:10px">${REGIONS.map(r=>`<button class="region" style="${u.region===r.id?'border-color:var(--accent);background:rgba(255,90,60,.1)':''}" data-act="pick" data-k="region" data-v="${r.id}"><span class="dot" style="background:${regOpen(r.id)?'var(--green)':'var(--amber)'}"></span><span><span class="nm">${r.name}</span><br><span class="st">${r.towns}</span>${regionProgress(r)}</span><span class="tag ${regOpen(r.id)?'open':'wl'}">${regOpen(r.id)?'Open now':'Join queue'}</span></button>`).join('')}</div>`;}
+  const last=st===N, wl=!regOpen(u.region);
+  return `<div class="auth"><div class="narrow" style="max-width:600px"><div class="progress">${Array.from({length:N},(_,i)=>`<i class="${st>i?'on':''}"></i>`).join('')}</div>
+   <div class="card" style="padding:26px">${b}<div class="row" style="margin-top:28px">${st>1?'<button class="btn ghost" data-act="obback">← Back</button>':''}<button class="btn primary lg" style="flex:1" data-act="obnext">${last?(wl?'Join the queue →':'See my matches →'):'Next →'}</button></div></div></div></div>`;
 }
 function bindOnboard(){
   const a=$('#ageMin'),b=$('#ageMax'),f=$('#agefill'),d=$('#dist');
@@ -328,7 +389,7 @@ function lineup(p){
   const sc=scoreOf(p), mark=c=>c>=.85?['✓','ok']:c>=.5?['~','mid']:['✕','no'];
   const rows=sc.rows.filter(r=>r.imp!=='none');
   const skipped=sc.rows.filter(r=>r.imp==='none').map(r=>Q_LABEL[r.k]).join(', ');
-  return `<div class="psec"><h4>How you line up</h4><div class="lineup">${rows.map(r=>{const m=mark(r.c);return `<div class="lu ${m[1]}"><i>${m[0]}</i><div><b>${Q_LABEL[r.k]}</b><span class="small muted"> · you: ${esc(r.mine)} · ${esc(p.name)}: ${esc(r.theirs)}</span></div><em class="impt ${r.imp}">${IMPS[r.imp]}</em></div>`}).join('')}</div>${skipped?`<div class="small muted" style="margin-top:8px">Not counted (you said it doesn't matter): ${skipped}.</div>`:''}<a class="small accent" href="#/onboarding" style="display:inline-block;margin-top:8px">Change what matters to you →</a></div>`;
+  return `<div class="psec"><h4>How you line up</h4><div class="lineup">${rows.map(r=>{const m=mark(r.c);return `<div class="lu ${m[1]}"><i>${m[0]}</i><div><b>${Q_LABEL[r.k]}</b>${r.priv?`<span class="small muted"> · 🔒 ${esc(p.name)} keeps this private · <b style="color:var(--text)">${align(r.c)}</b></span>`:`<span class="small muted"> · you: ${esc(r.mine)} · ${esc(p.name)}: ${esc(r.theirs)}</span>`}</div><em class="impt ${r.imp}">${IMPS[r.imp]}</em></div>`}).join('')}</div>${skipped?`<div class="small muted" style="margin-top:8px">Not counted (you said it doesn't matter): ${skipped}.</div>`:''}<div class="small muted" style="margin-top:8px">🔒 Private answers still count toward your match. We only tell you whether you're aligned, never what they said.</div><a class="small accent" href="#/onboarding" style="display:inline-block;margin-top:8px" data-act="edit-prefs">Change what matters to you →</a></div>`;
 }
 
 /* ---------- matches ---------- */
@@ -339,7 +400,7 @@ function mCard(p){
     : sw==='pass'?`<div class="status pass">Passed</div>`
     : `<div class="acts"><button class="btn ghost" data-act="pass" data-id="${p.id}">Pass</button><button class="btn primary" data-act="like" data-id="${p.id}">Interested</button></div>`;
   return `<article class="mcard"><a class="ph" href="#/profile/${p.id}"><img src="${photo(p.seed,0)}" alt="${p.name}">${vcheck}<span class="score">${scoreOf(p).score}% match</span><span class="nm">${p.name}, ${p.age}<small>${p.town} · ${p.dist} mi away</small></span></a>
-   <div class="bd"><div class="tagrow" style="margin:0">${p.tags.slice(0,3).map(t=>`<span class="chip">${t}</span>`).join('')}</div>
+   <div class="bd"><div class="tagrow" style="margin:0"><span class="chip">${p.tags[4]}</span>${publicChips(p,2).join('')}</div>
    <div class="why"><b>Why we matched you</b>${esc(p.why)}</div>${act}</div></article>`;
 }
 function pMatches(){
@@ -375,7 +436,8 @@ function pProfile(id){
       <div class="row" style="gap:10px;margin-bottom:6px">${vbadge('ID Verified · 18+')}<span class="chip amber">${scoreOf(p).score}% match</span></div>
       <div class="pname">${p.name}, <span>${p.age}</span></div>
       <div class="muted" style="margin-top:6px">📍 ${p.town}, IL · ${p.dist} miles away</div>
-      <div class="tagrow">${p.tags.map(t=>`<span class="chip">${t}</span>`).join('')}</div>
+      <div class="tagrow"><span class="chip">${p.tags[4]}</span>${publicChips(p).join('')}</div>
+      ${p.priv.length?`<div class="small muted" style="margin-top:-6px">🔒 ${esc(p.name)} chose to keep ${p.priv.length} ${p.priv.length===1?'answer':'answers'} private. They still count toward how well you match.</div>`:''}
       <div class="why" style="margin:6px 0 4px"><b>Why we matched you</b>${esc(p.why)}</div>
       ${scoreOf(p).blocked.length?`<div class="banner" style="margin:10px 0;border-color:#ff5a3c"><div class="small"><b>Outside your dealbreakers:</b> ${scoreOf(p).blocked.map(r=>Q_LABEL[r.k]).join(', ')}. ${esc(p.name)} wouldn't normally show up in your matches.</div></div>`:''}
       ${lineup(p)}
@@ -497,6 +559,37 @@ function pSchedule(){
    <div class="small muted center" style="margin-top:16px">Plans change? <button class="accent" data-act="restart-date" style="text-decoration:underline">Cancel &amp; reschedule</button></div></div></div>`;
 }
 
+/* ---------- waiting room ---------- */
+function pWaiting(){
+  const r=REGIONS.find(x=>x.id===state.user.region)||REGIONS[0], short=r.name.split(' / ')[0];
+  if(regOpen(r.id)) return `<div class="wrap"><div class="narrow center" style="max-width:560px;padding:40px 0 60px"><div style="font-size:3.4rem">🎉</div><div class="eyebrow">Queue complete</div><h2 style="font-size:clamp(2rem,6vw,3rem)">${esc(short)} is open!</h2>
+    <p class="lead" style="margin:10px 0 20px">250 verified neighbors made it. Your first weekly matches are ready.</p>
+    <div class="card" style="text-align:left"><div class="small muted">${state.notify.text?'📱 Text':'✉️ Email'} · just now</div><p style="margin-top:6px"><b>${esc(B.name)}:</b> Good news, ${esc(me())}! ${esc(short)} just hit 250 verified members and is now open. Your first matches are waiting.</p></div>
+    <a class="btn primary lg" style="margin-top:22px" href="#/matches" data-act="see-matches">See my matches →</a></div></div>`;
+  const n=regCount(r), pct=Math.round(n/250*100), left=250-n;
+  const code=(me().toUpperCase().replace(/[^A-Z]/g,'')||'FRIEND')+'-'+hashCode();
+  const steps=[['Account created',1],['ID verified · 18+',1],['Profile & preferences saved',1],[`${left} more verified neighbors to open ${esc(short)}`,0]];
+  return `<div class="wrap"><div class="narrow" style="max-width:720px;padding:34px 0 70px">
+   <div class="eyebrow">You're in the queue</div><h2 style="font-size:clamp(1.9rem,5vw,2.8rem)">Waiting for others in ${esc(short)}</h2>
+   <p class="lead" style="margin-top:8px">Thanks, ${esc(me())}. You're verified and your profile is ready. We open ${esc(r.name)} once <b style="color:var(--text)">250 verified members</b> have joined, and we'll notify you the moment it does.</p>
+   <div class="card" style="margin-top:22px"><div class="row" style="justify-content:space-between;align-items:flex-end"><div><div style="font-family:var(--serif);font-size:3rem;font-weight:700;line-height:1">${n}<span class="muted" style="font-size:1.3rem;font-weight:500"> / 250</span></div><div class="small muted">verified members in ${esc(short)}</div></div><span class="chip amber">${left} to go</span></div>
+     <div class="bar" style="margin:14px 0 16px;height:12px"><i style="width:${pct}%"></i></div>
+     <ul class="timeline">${steps.map(x=>`<li class="${x[1]?'ok':'wait'}"><i>${x[1]?'✓':'…'}</i>${x[0]}</li>`).join('')}</ul></div>
+   <div class="grid g2" style="margin-top:16px">
+    <div class="card"><h3 style="margin-bottom:6px">🔔 We'll notify you</h3><p class="small muted">The day ${esc(short)} opens you'll get:</p>
+      <div class="notifprev">“${esc(B.name)}: Good news, ${esc(me())}. ${esc(short)} just hit 250 verified members and is now open. Your first matches are waiting.”</div>
+      <div class="setrow"><span>Email me</span><span class="switch ${state.notify.email?'on':''}" data-act="notif" data-k="email"></span></div>
+      <div class="setrow"><span>Text me</span><span class="switch ${state.notify.text?'on':''}" data-act="notif" data-k="text"></span></div></div>
+    <div class="card"><h3 style="margin-bottom:6px">👯 Invite friends</h3><p class="small muted">The faster verified neighbors join, the sooner ${esc(short)} opens. Friends must ID-verify to count.</p>
+      <div class="invitebox">${B.name.toLowerCase()}.example/join/${code}</div>
+      <div class="row" style="margin-top:12px"><button class="btn primary sm" data-act="invite">Copy invite link</button><button class="btn ghost sm" data-act="invite-share">Text a friend</button></div>
+      <div class="small muted" style="margin-top:10px">${state.invites?`${state.invites} invite${state.invites>1?'s':''} shared so far`:'No invites shared yet'}</div></div></div>
+   <div class="card" style="margin-top:16px"><div class="row" style="justify-content:space-between"><div><h3>✏️ Your profile</h3><div class="small muted">Edit your answers, importance settings and what's shown or private while you wait.</div></div><div class="row"><a class="btn ghost sm" href="#/onboarding" data-act="edit-prefs">Edit profile</a><button class="btn ghost sm" data-act="preview">👁 Preview</button></div></div></div>
+   <div class="demobar" style="margin-top:22px"><span class="lbl">Demo</span><span class="small muted" style="flex:1">Skip the wait and see what happens when ${esc(short)} hits 250.</span><button class="btn primary sm" data-act="sim-open">▶ Simulate ${esc(short)} opening</button></div>
+  </div></div>`;
+}
+function hashCode(){return Math.abs(hash(me()+state.user.region)).toString(36).toUpperCase().slice(0,4).padEnd(4,'X');}
+
 /* ---------- business ---------- */
 function pBusiness(){
   const d=state.date, V=venuesFor(state.user.region), v=V.find(x=>x.id===(d.venueId))||V[0];
@@ -525,10 +618,13 @@ function pBusiness(){
 
 /* ---------- router ---------- */
 function route(){ const h=(location.hash||'#/').slice(2); const [r,arg]=h.split('/'); return {r:r||'',arg}; }
-const GUARD=['matches','profile','schedule','onboarding'];
+const GUARD=['matches','profile','schedule','onboarding','waiting'];
 function render(){
   let {r,arg}=route();
   if(GUARD.includes(r)&&!state.loggedIn){ location.hash='#/login'; return; }
+  const gated=['matches','profile','schedule'].includes(r);
+  if(state.loggedIn&&gated&&!regOpen(state.user.region)){ location.hash='#/waiting'; return; }
+  if(r==='waiting'&&regOpen(state.user.region)&&!state.celebrate){ location.hash='#/matches'; return; }
   renderNav(r); renderFab();
   const app=$('#app'); let html='';
   if(r==='') html=pLanding();
@@ -540,6 +636,7 @@ function render(){
   else if(r==='profile') html=pProfile(arg);
   else if(r==='schedule') html=pSchedule();
   else if(r==='business') html=pBusiness();
+  else if(r==='waiting') html=pWaiting();
   else html=pLanding();
   app.innerHTML=html;
   if(r==='onboarding') bindOnboard();
@@ -553,10 +650,11 @@ window.addEventListener('hashchange',render);
 function partnerModal(){modal(`<h3>Become a partner</h3><p class="muted small" style="margin-bottom:6px">First 50 businesses per region are free for 6 months. Founding Partner badge, locked-in rate, monthly report.</p><form data-form="partner"><label class="f">Business name</label><input type="text" name="biz" required placeholder="Mill Street Diner"><label class="f">Type</label><select><option>Restaurant</option><option>Café / coffee</option><option>Winery / brewery</option><option>Bowling / activity</option><option>Other</option></select><label class="f">Email</label><input type="email" required placeholder="owner@yourbiz.com"><div class="row" style="margin-top:20px"><button class="btn primary" type="submit" style="flex:1">Apply for a free spot</button><button class="btn ghost" type="button" data-act="close">Cancel</button></div></form>`);}
 function regionModal(id){
   const r=REGIONS.find(x=>x.id===id), short=r.name.split(' / ')[0];
-  if(r.status==='open') return modal(`<h3>${r.name}</h3><p class="muted">${r.towns}</p><p style="margin:12px 0"><b class="accent">${r.left} founding spots left</b> at $0.</p><div class="row"><a class="btn primary" style="flex:1" href="#/signup" data-act="close-nav" data-region="${id}">Join ${short} free</a><button class="btn ghost" data-act="close">Close</button></div>`);
-  const joined=state.waitlist[id], n=r.wl+(joined?1:0), pct=Math.round(n/r.need*100);
-  modal(`<h3>${r.name}</h3><p class="muted">${r.towns}</p><div style="margin:16px 0"><div class="row" style="justify-content:space-between"><b>${n} on the waitlist</b><span class="small muted">We open at ${r.need}</span></div><div class="bar" style="margin-top:8px"><i style="width:${pct}%"></i></div></div>
-   ${joined?`<div class="chip green">✓ You're on the list. We'll email you when ${short} opens.</div><div class="row" style="margin-top:16px"><button class="btn ghost" data-act="close">Close</button></div>`:`<form data-form="waitlist" data-id="${id}"><label class="f">Email</label><input type="email" required placeholder="you@email.com"><div class="row" style="margin-top:16px"><button class="btn primary" type="submit" style="flex:1">Join the waitlist</button><button class="btn ghost" type="button" data-act="close">Close</button></div></form>`}`);
+  if(regOpen(id)) return modal(`<h3>${r.name}</h3><p class="muted">${r.towns}</p><div style="margin:14px 0">${regionProgress(r)}</div><p style="margin:12px 0"><b class="accent">${r.left||0} founding spots left</b> at $0.</p><div class="row"><a class="btn primary" style="flex:1" href="#/signup" data-act="close-nav" data-region="${id}">Join ${short} free</a><button class="btn ghost" data-act="close">Close</button></div>`);
+  const n=regCount(r), mine=state.loggedIn&&state.user.region===id&&state.waitlist[id];
+  modal(`<h3>${r.name}</h3><p class="muted">${r.towns}</p><div style="margin:16px 0"><div class="row" style="justify-content:space-between"><b>${n} of 250 verified</b><span class="small muted">${250-n} to go</span></div><div class="bar" style="margin-top:8px"><i style="width:${Math.round(n/250*100)}%"></i></div></div>
+   <p class="muted small">${short} opens when 250 ID-verified locals have joined. To get in line you create a real account, verify your ID, and finish your profile. Then we'll notify you the day it opens. No spots are held for unverified sign-ups.</p>
+   ${mine?`<div class="chip green" style="margin:14px 0">✓ You're in the queue</div><div class="row"><a class="btn primary" style="flex:1" href="#/waiting" data-act="close">See my queue status</a><button class="btn ghost" data-act="close">Close</button></div>`:`<div class="row" style="margin-top:18px"><a class="btn primary" style="flex:1" href="#/signup" data-act="close-nav" data-region="${id}">Create account &amp; verify</a><button class="btn ghost" data-act="close">Close</button></div>`}`);
 }
 function matchPopup(p){
   modal(`<div class="matchpop"><div class="eyebrow">It's a match</div><h3>You and ${p.name} both said yes 🎉</h3><div class="pair"><img src="${myPhoto()}" alt=""><img src="${photo(p.seed,0)}" alt=""></div><p class="muted">Skip the small talk. Pick a local spot and propose a few times.</p><div class="row" style="margin-top:18px;justify-content:center"><a class="btn primary lg" href="#/schedule" data-act="start-date" data-id="${p.id}">📅 Schedule a date</a><button class="btn ghost" data-act="close">Later</button></div></div>`);
@@ -565,6 +663,12 @@ function doLike(id){
   const p=person(id); state.swipes[id]='interested';
   if(p.likesYou){ state.matched[id]=true; save(); render(); matchPopup(p); }
   else { save(); render(); toast(`Interest sent to ${p.name}. We'll tell you if ${p.name} says yes.`); }
+}
+function previewModal(){
+  const priv=Object.keys(LABELS).filter(k=>CHIP_ORDER.includes(k)&&visOf(k)==='priv').length;
+  modal(`<h3>How others see you</h3><p class="muted small">Only answers marked 🔓 Shown appear here.</p><div class="row" style="margin:14px 0;gap:14px"><img src="${myPhoto()}" alt="" style="width:64px;height:64px;border-radius:50%;object-fit:cover"><div><b style="font-family:var(--serif);font-size:1.4rem">${esc(me())}</b><div style="margin-top:4px">${vbadge('ID Verified · 18+')}</div></div></div>
+   <div class="tagrow" style="margin:0">${chipsFrom(k=>state.user[k],k=>visOf(k)==='priv').join('')}</div>
+   <div class="card small muted" style="margin-top:16px">🔒 ${priv} ${priv===1?'answer is':'answers are'} private. They still help us match you, but nobody sees them.</div><div class="row" style="margin-top:16px"><button class="btn primary" style="flex:1" data-act="close">Done</button></div>`);
 }
 function shareModal(){
   const d=state.date, v=venuesFor(state.user.region).find(x=>x.id===d.venueId), p=person(d.withId);
@@ -596,7 +700,7 @@ document.addEventListener('click',e=>{
   switch(a){
    case 'fab': fabOpen=!fabOpen; renderFab(); return;
    case 'reset': fabOpen=false; resetAll(); return;
-   case 'demo-login': fabOpen=false; state.loggedIn=true; state.user.verified=true; state.user.onboarded=true; save(); if(location.hash==='#/matches') render(); else location.hash='#/matches'; return;
+   case 'demo-login': fabOpen=false; state.user.region='carbondale'; state.loggedIn=true; state.user.verified=true; state.user.onboarded=true; save(); if(location.hash==='#/matches') render(); else location.hash='#/matches'; return;
    case 'close': closeModal(); return;
    case 'close-modal-bg': if(e.target.closest('.modal'))return; closeModal(); return;
    case 'close-nav': state.user.region=D.region; save(); closeModal(); return;
@@ -609,7 +713,16 @@ document.addEventListener('click',e=>{
    case 'verified': state.user.verified=true; save(); return;
    case 'imp': state.user.imp=Object.assign({},state.user.imp||{}); state.user.imp[D.k]=D.v; save(); render(); return;
    case 'pick': state.user[D.k]=D.v; save(); render(); return;
-   case 'obnext': if(ob.step<4){ob.step++;render();} else {state.user.onboarded=true;save();ob.step=1;location.hash='#/matches';} return;
+   case 'obnext': if(ob.step<5){ob.step++;render();} else {state.user.onboarded=true; const rg=state.user.region; ob.step=1; if(regOpen(rg)){save();location.hash='#/matches';} else {state.waitlist[rg]=true;save();if(location.hash==='#/waiting')render();else location.hash='#/waiting';}} return;
+   case 'vis': {state.user.vis=Object.assign({},state.user.vis||{}); state.user.vis[D.k]=visOf(D.k)==='priv'?'show':'priv'; save(); render(); return;}
+   case 'preview': previewModal(); return;
+   case 'notif': state.notify[D.k]=!state.notify[D.k]; save(); render(); return;
+   case 'invite': {const t=($('.invitebox')||{}).textContent||''; if(navigator.clipboard) navigator.clipboard.writeText('https://'+t).catch(()=>{}); state.invites++; save(); render(); toast('Invite link copied'); return;}
+   case 'invite-share': state.invites++; save(); render(); toast('Invite text sent (demo, no message actually sent)'); return;
+   case 'sim-open': {const rg=state.user.region; state.opened=Object.assign({},state.opened); state.opened[rg]=true; state.celebrate=true; save(); render(); return;}
+   case 'see-matches': state.celebrate=false; save(); return;
+   case 'edit-prefs': ob.step=1; return;
+   case 'demo-waiting': {fabOpen=false; Object.assign(state.user,{region:'paducah',verified:true,onboarded:true}); state.loggedIn=true; state.waitlist.paducah=true; state.celebrate=false; save(); if(location.hash==='#/waiting')render(); return;}
    case 'obback': ob.step--; render(); return;
    case 'like': e.preventDefault(); doLike(D.id); return;
    case 'pass': e.preventDefault(); state.swipes[D.id]='pass'; delete state.matched[D.id]; save(); render(); return;
@@ -659,7 +772,6 @@ document.addEventListener('submit',e=>{
   if(k==='signup'){ state.user.name=((fd.get('name')||'Alex').trim().split(' ')[0])||'Alex'; state.user.email=fd.get('email'); state.loggedIn=true; state.user.verified=false; verify={step:1,id:false,selfie:false}; ob={step:1}; save(); location.hash='#/verify'; }
   if(k==='login'){ state.loggedIn=true; state.user.verified=true; state.user.onboarded=true; save(); location.hash='#/matches'; }
   if(k==='partner'){ closeModal(); toast('Thanks! You are on the partner list (demo).'); }
-  if(k==='waitlist'){ state.waitlist[f.dataset.id]=true; save(); regionModal(f.dataset.id); render(); toast("You're on the waitlist!"); }
 });
 document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeModal(); });
 render();
